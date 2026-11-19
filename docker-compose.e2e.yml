@@ -35,8 +35,9 @@ services:
       SEED: "true"
     ports:
       - "4200:4100"
+    # 127.0.0.1 chứ không phải localhost: Alpine có thể phân giải localhost → ::1 (IPv6), API chỉ nghe IPv4
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4100/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4100/api/health || exit 1"]
       interval: 3s
       timeout: 3s
       retries: 40
@@ -52,7 +53,7 @@ services:
     ports:
       - "3200:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/login >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/login >/dev/null || exit 1"]
       interval: 3s
       timeout: 3s
       retries: 40

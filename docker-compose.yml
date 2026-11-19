@@ -44,8 +44,9 @@ services:
     ports:
       # Trình duyệt gọi API qua Next (/api/*); production đặt BACKEND_BIND=127.0.0.1
       - "${BACKEND_BIND:-0.0.0.0}:${BACKEND_PORT:-4100}:4100"
+    # 127.0.0.1 chứ không phải localhost: Alpine có thể phân giải localhost → ::1 (IPv6), API chỉ nghe IPv4
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4100/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4100/api/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 10
