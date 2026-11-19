@@ -1,0 +1,60 @@
+@startuml 02-ban-hang
+title CoffeePOS — Chi tiết use case Bán hàng (checkout.html → POST /api/orders → receipt.html)
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5EBDD
+  BorderColor #6F4E37
+}
+
+actor "Thu ngân" as TN
+actor "Pha chế" as PC
+actor "Chủ quán\n(admin)" as CQ
+
+rectangle "CoffeePOS — Bán hàng" {
+  usecase "UC02\nBán hàng tại quầy" as UC02
+  usecase "Chọn món" as CHON
+  usecase "Chọn size\n(S / M / L)" as SIZE
+  usecase "Nhập số lượng" as QTY
+  usecase "Kiểm tra đăng nhập\n(authorize)" as AUTH
+  usecase "Kiểm tra đơn hợp lệ\n(≥ 1 món, 1–50 ly/món)" as VALID
+  usecase "Tính tổng tiền\ntheo giá trong DB" as TONG
+  usecase "Lưu orders +\norder_items" as LUU
+  usecase "UC03\nIn hóa đơn CP-…" as UC03
+  usecase "UC05\nNhận đơn ở màn quầy pha" as UC05
+  usecase "UC06\nSửa giá / thêm món" as UC06
+}
+
+TN --> UC02
+TN --> UC03
+PC --> UC05
+CQ --> UC06
+
+UC02 ..> CHON : <<include>>
+UC02 ..> QTY : <<include>>
+UC02 ..> AUTH : <<include>>
+UC02 ..> VALID : <<include>>
+UC02 ..> TONG : <<include>>
+UC02 ..> LUU : <<include>>
+SIZE .> CHON : <<extend>>
+UC03 .> UC02 : <<extend>>
+UC05 ..> LUU : đọc đơn đã lưu
+TONG ..> UC06 : dùng giá\ndo admin đặt
+
+note right of TONG
+  **Luật bán hàng**
+  BR01 Giá lấy từ màn Sản phẩm, chỉ admin sửa
+  BR02 Mỗi món 1–50 ly mỗi đơn
+  BR03 Đơn phải có ít nhất một món
+  BR04 Chỉ nhân viên đã đăng nhập mới tạo đơn
+  BR05 Size L cộng 6.000đ vào giá (thay đổi giữa chừng)
+end note
+
+note bottom of AUTH #FFE4E1
+  **Lỗi thật trong server.js**
+  L1 POST /api/orders không gọi authorize() → vi phạm BR04
+  L2 qty âm vẫn trả 201 → vi phạm BR02
+  L3 Tổng tiền dùng price trình duyệt gửi lên → vi phạm BR01
+end note
+@enduml

@@ -1,0 +1,19 @@
+{
+  "name": "coffeepos-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:a11y": "playwright test tests/a11y.spec.ts",
+    "report": "playwright show-report reports/html",
+    "perf": "node perf/load-test.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "autocannon": "^9.0.0",
+    "typescript": "^7.0.2"
+  }
+}

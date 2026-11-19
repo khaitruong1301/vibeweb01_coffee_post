@@ -1,0 +1,131 @@
+// Schema CoffeePOS — nguồn chính của cấu trúc DB. Đổi schema: `npm run db:migrate -- --name <ten>`.
+// Model PascalCase số ít ↔ bảng snake_case số nhiều; tiền là Int (VNĐ); thời điểm timestamptz (UTC).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  // Cố định import không đuôi để `nest build` (CommonJS) chạy được, kể cả khi generate lúc chưa có tsconfig.
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Vai trò nhân viên. admin = Chủ quán.
+enum Role {
+  cashier
+  barista
+  admin
+}
+
+/// Trạng thái pha chế của đơn. Đơn đã thanh toán ngay khi tạo (bấm Thanh toán = tạo đơn).
+enum OrderStatus {
+  pending
+  preparing
+  ready
+  done
+}
+
+/// Nguồn đơn: tại quầy hoặc ứng dụng giao đồ ăn.
+enum OrderSource {
+  counter
+  grabfood
+  shopeefood
+}
+
+/// S, M giá gốc; L cộng phụ thu (BR05, xem src/orders/pricing.ts).
+enum Size {
+  S
+  M
+  L
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name") @db.VarChar(100)
+  role         Role
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  orders          Order[]
+  updatedProducts Product[] @relation("ProductUpdatedBy")
+
+  @@map("users")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(50)
+  sortOrder Int       @default(0) @map("sort_order")
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  categoryId  Int      @map("category_id")
+  name        String   @db.VarChar(100)
+  /// Giá gốc (size S/M hoặc món không có size), VNĐ, > 0 — CHECK trong migration.
+  price       Int
+  hasSize     Boolean  @default(true) @map("has_size")
+  isActive    Boolean  @default(true) @map("is_active")
+  imageUrl    String?  @map("image_url") @db.VarChar(500)
+  updatedById Int?     @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  updatedBy  User?       @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  orderItems OrderItem[]
+
+  @@unique([name])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  cashierId   Int         @map("cashier_id")
+  source      OrderSource @default(counter)
+  /// Mã đơn của GrabFood / ShopeeFood (bắt buộc khi source khác counter).
+  partnerCode String?     @map("partner_code") @db.VarChar(50)
+  note        String?     @db.VarChar(200)
+  status      OrderStatus @default(pending)
+  /// Tổng tiền do server tính từ giá trong DB (BR01).
+  total       Int
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cashier User        @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  items   OrderItem[]
+
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+/// Chi tiết đơn — chụp lại tên và đơn giá lúc bán; đổi giá menu sau đó không ảnh hưởng đơn cũ.
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  orderId     Int     @map("order_id")
+  productId   Int     @map("product_id")
+  productName String  @map("product_name") @db.VarChar(100)
+  size        Size?
+  /// Đơn giá đã gồm phụ thu size.
+  unitPrice   Int     @map("unit_price")
+  /// 1–50 — CHECK trong migration (BR02).
+  quantity    Int
+  lineTotal   Int     @map("line_total")
+  note        String? @db.VarChar(100)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("order_items")
+}

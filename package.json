@@ -1,0 +1,25 @@
+{
+  "name": "coffeepos",
+  "private": true,
+  "description": "Lệnh kiểm thử gom cho cả repo — chi tiết trong TEST_CHECKLIST.md",
+  "scripts": {
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "static": "npm run lint && npm run typecheck",
+    "audit": "npm audit --omit=dev --audit-level=high --prefix backend && npm audit --omit=dev --audit-level=high --prefix frontend",
+    "test:unit": "npm run test:cov --prefix backend && npm run test:ci --prefix frontend",
+    "test:api": "npm run test:e2e:cov --prefix backend",
+    "test:regression": "npm run test:regression --prefix backend",
+    "stack:e2e:up": "docker compose -f docker-compose.e2e.yml up -d --build --wait",
+    "stack:e2e:down": "docker compose -f docker-compose.e2e.yml down",
+    "test:smoke": "bash scripts/smoke.sh http://localhost:3200 http://localhost:4200",
+    "test:e2e": "npm test --prefix e2e",
+    "test:a11y": "npm run test:a11y --prefix e2e",
+    "test:perf": "npm run perf --prefix e2e",
+    "coverage:summary": "node scripts/coverage-summary.mjs \"Backend unit=backend/coverage/unit/coverage-summary.json\" \"Backend e2e=backend/coverage/e2e/coverage-summary.json\" \"Frontend=frontend/coverage/coverage-summary.json\"",
+    "test:all": "npm run static && npm run audit && npm run test:unit && npm run test:api && npm run stack:e2e:up && npm run test:smoke && npm run test:e2e && npm run test:perf && npm run coverage:summary",
+    "test:report": "node scripts/test-report.mjs",
+    "test:report:quick": "node scripts/test-report.mjs --quick",
+    "test:report:build": "node scripts/test-report.mjs --build-only"
+  }
+}

@@ -1,0 +1,63 @@
+# CoffeePOS — PostgreSQL 17 + Backend NestJS + Frontend Next.js
+#   Chỉ DB (để dev local):   docker compose up -d db
+#   Toàn bộ:                 docker compose up -d --build
+#   Web: http://localhost:3100 · API: http://localhost:4100/api · DB: localhost:5435
+name: coffeepos
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: coffeepos
+      TZ: UTC
+    ports:
+      - "${DB_PORT:-5435}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coffeepos"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres}@db:5432/coffeepos
+      JWT_SECRET: ${JWT_SECRET:-coffeepos-dev-secret-doi-truoc-khi-deploy}
+      PORT: 4100
+      SEED: ${SEED:-true}
+      TEST_REPORT_PATH: /app/reports/test-report.json
+    volumes:
+      # Báo cáo kiểm thử (npm run test:report) cho trang /quality — chỉ đọc
+      - ./reports:/app/reports:ro
+    ports:
+      - "${BACKEND_PORT:-4100}:4100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4100/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:4100
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3100}:3000"
+
+volumes:
+  db-data:

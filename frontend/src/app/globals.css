@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Biến theme — dùng qua class Tailwind (bg-primary, text-muted…), không viết mã màu trong component. */
+@theme {
+  --color-primary: #6f4e37;
+  --color-primary-hover: #5a3e2b;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5ebdd;
+  --color-background: #faf7f2;
+  --color-surface: #ffffff;
+  --color-foreground: #2b1d14;
+  --color-muted: #7a675a;
+  --color-border: #e6dccf;
+  --color-success: #2e7d32;
+  --color-warning: #b26a00;
+  --color-danger: #c62828;
+  --font-sans: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+}

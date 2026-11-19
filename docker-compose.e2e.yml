@@ -1,0 +1,58 @@
+# Stack TẠM cho E2E / a11y / smoke / load test — tách biệt hoàn toàn với stack dev.
+#   docker compose -f docker-compose.e2e.yml up -d --build --wait
+#   docker compose -f docker-compose.e2e.yml down      (DB nằm trên RAM → tắt là mất, không cần -v)
+# Web http://localhost:3200 · API http://localhost:4200/api · DB localhost:5436
+name: coffeepos-e2e
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: coffeepos_e2e
+      TZ: UTC
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coffeepos_e2e"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/coffeepos_e2e
+      JWT_SECRET: e2e-only-secret-khong-dung-o-noi-khac-0123456789
+      CORS_ORIGIN: http://localhost:3200
+      PORT: 4100
+      SEED: "true"
+    ports:
+      - "4200:4100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4100/api/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:4100
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3200:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/login >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 40

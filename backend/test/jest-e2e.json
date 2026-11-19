@@ -1,0 +1,66 @@
+{
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
+  "rootDir": "..",
+  "roots": [
+    "<rootDir>/test"
+  ],
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.ts$": [
+      "ts-jest",
+      {
+        "astTransformers": {
+          "before": [
+            "<rootDir>/test/swagger-transformer.js"
+          ]
+        }
+      }
+    ]
+  },
+  "testEnvironment": "node",
+  "globalSetup": "<rootDir>/test/global-setup.ts",
+  "setupFiles": [
+    "<rootDir>/test/setup-env.ts"
+  ],
+  "collectCoverageFrom": [
+    "src/**/*.ts",
+    "!src/generated/**",
+    "!src/main.ts",
+    "!src/seed/run.ts",
+    "!src/**/*.spec.ts"
+  ],
+  "coverageDirectory": "coverage/e2e",
+  "coverageReporters": [
+    "text-summary",
+    "text",
+    "lcov",
+    "json-summary"
+  ],
+  "coverageThreshold": {
+    "global": {
+      "lines": 90,
+      "branches": 75,
+      "functions": 85,
+      "statements": 90
+    }
+  },
+  "reporters": [
+    "default",
+    [
+      "jest-junit",
+      {
+        "outputDirectory": "reports",
+        "outputName": "junit-e2e.xml",
+        "suiteNameTemplate": "{filepath}",
+        "classNameTemplate": "{classname}",
+        "titleTemplate": "{title}",
+        "ancestorSeparator": " › ",
+        "addFileAttribute": "true"
+      }
+    ]
+  ]
+}
