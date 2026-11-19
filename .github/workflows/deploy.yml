@@ -1,0 +1,91 @@
+# CD CoffeePOS — deploy lên server sau khi CI trên main xanh (hoặc chạy tay).
+# Server tự build image và chạy docker-compose.yml với .env production (xem scripts/deploy.sh):
+# DB và API chỉ nghe trên 127.0.0.1, chỉ web (FRONTEND_PORT) mở ra Internet.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS  — kết nối server
+#   JWT_SECRET, DB_PASSWORD                                — ghi vào .env trên server
+#     (DB_PASSWORD chỉ có hiệu lực khi volume DB tạo lần đầu — đổi sau đó phải đổi cả trong Postgres)
+# Variables (tuỳ chọn): FRONTEND_PORT (mặc định 3100), SEED (mặc định true), DEPLOY_URL (link hiển thị)
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy lên server
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL }}
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: Cấu hình SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Ghi .env trên server
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          FRONTEND_PORT: ${{ vars.FRONTEND_PORT || '3100' }}
+          SEED: ${{ vars.SEED || 'true' }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          test -n "$JWT_SECRET" && test -n "$DB_PASSWORD" || { echo "Thiếu secret JWT_SECRET / DB_PASSWORD"; exit 1; }
+          {
+            echo "JWT_SECRET=\"$JWT_SECRET\""
+            echo "DB_PASSWORD=\"$DB_PASSWORD\""
+            echo "SEED=$SEED"
+            echo "FRONTEND_PORT=$FRONTEND_PORT"
+            echo "BACKEND_PORT=4100"
+            echo "DB_BIND=127.0.0.1"
+            echo "BACKEND_BIND=127.0.0.1"
+            echo "CORS_ORIGIN=\"${DEPLOY_URL:-http://localhost:$FRONTEND_PORT}\""
+          } | ssh server 'umask 077 && mkdir -p /opt/coffeepos && cat > /opt/coffeepos/.env'
+
+      - name: Deploy (git fetch → docker compose up --build → health check)
+        run: ssh server "bash -s -- https://github.com/${{ github.repository }}.git $SHA" < scripts/deploy.sh
+
+      - name: Tóm tắt
+        if: always()
+        run: |
+          echo "### Deploy \`${SHA::7}\` — ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "${{ vars.DEPLOY_URL }}" ] && echo "Web: ${{ vars.DEPLOY_URL }}" >> "$GITHUB_STEP_SUMMARY" || true

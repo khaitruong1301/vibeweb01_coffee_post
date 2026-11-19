@@ -23,6 +23,11 @@ cd backend  && npm install && npm run db:deploy && npm run db:seed && npm run de
 cd frontend && npm install && npm run dev                                         # :3100
 ```
 
+## Deploy (CI/CD)
+
+Push lên `main` → CI (`ci.yml`) chạy toàn bộ kiểm thử → nếu xanh, `deploy.yml` SSH vào server, lấy đúng commit đó và chạy `docker compose up -d --build`.
+Cấu hình secrets và cách vận hành: `.claude/docs/architecture/overview.md` mục 7.
+
 ## Kiểm thử
 
 15 hạng mục kiểm thử tự động. Chi tiết, kết quả và coverage xem `TEST_CHECKLIST.md`; CI chạy khi tạo PR (`.github/workflows/ci.yml`).

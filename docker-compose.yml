@@ -14,7 +14,8 @@ services:
       POSTGRES_DB: coffeepos
       TZ: UTC
     ports:
-      - "${DB_PORT:-5435}:5432"
+      # Server production đặt DB_BIND=127.0.0.1 để DB không lộ ra Internet
+      - "${DB_BIND:-0.0.0.0}:${DB_PORT:-5435}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
@@ -34,13 +35,15 @@ services:
       DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres}@db:5432/coffeepos
       JWT_SECRET: ${JWT_SECRET:-coffeepos-dev-secret-doi-truoc-khi-deploy}
       PORT: 4100
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100}
       SEED: ${SEED:-true}
       TEST_REPORT_PATH: /app/reports/test-report.json
     volumes:
       # Báo cáo kiểm thử (npm run test:report) cho trang /quality — chỉ đọc
       - ./reports:/app/reports:ro
     ports:
-      - "${BACKEND_PORT:-4100}:4100"
+      # Trình duyệt gọi API qua Next (/api/*); production đặt BACKEND_BIND=127.0.0.1
+      - "${BACKEND_BIND:-0.0.0.0}:${BACKEND_PORT:-4100}:4100"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4100/api/health || exit 1"]
       interval: 10s
