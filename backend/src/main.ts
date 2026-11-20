@@ -10,6 +10,7 @@ async function bootstrap() {
   const log = new Logger('CoffeePOS');
   log.log(`API chạy tại http://localhost:${config.port}/api`);
   if (config.usingDevSecret) log.warn('Đang dùng JWT_SECRET mặc định cho dev — đặt JWT_SECRET riêng trước khi deploy!');
+  log.log(`Môi trường: ${config.appEnv} · Swagger: ${config.swaggerEnabled ? 'bật' : 'tắt'} · cookie Secure: ${config.cookieSecure}`);
 }
 bootstrap().catch((err: unknown) => {
   console.error('Không khởi động được API:', err);

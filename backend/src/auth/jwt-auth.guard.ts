@@ -33,15 +33,19 @@ export class JwtAuthGuard implements CanActivate {
     // Đọc lại DB: tài khoản bị khóa / đổi vai trò có hiệu lực ngay.
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, username: true, fullName: true, role: true, isActive: true },
+      select: { id: true, username: true, fullName: true, role: true, isActive: true, tokenVersion: true },
     });
     if (!user || !user.isActive) throw new UnauthorizedException({ error: 'Tài khoản không còn hoạt động' });
+    // Token cấp trước lần đăng xuất / đổi mật khẩu gần nhất → đã bị thu hồi.
+    if (payload.ver !== user.tokenVersion) {
+      throw new UnauthorizedException({ error: 'Phiên đăng nhập đã kết thúc, vui lòng đăng nhập lại' });
+    }
     req.user = { id: user.id, username: user.username, fullName: user.fullName, role: user.role };
     return true;
   }
 }
 
-function extractToken(req: Request): string | undefined {
+export function extractToken(req: Request): string | undefined {
   const auth = req.headers.authorization;
   if (auth?.startsWith('Bearer ')) return auth.slice(7);
   const cookie = (req.cookies as Record<string, string> | undefined)?.[config.cookieName];

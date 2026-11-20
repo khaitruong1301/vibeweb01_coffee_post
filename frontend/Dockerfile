@@ -8,6 +8,9 @@ COPY . .
 # Địa chỉ backend nhìn từ container frontend — được chốt vào cấu hình rewrites lúc build.
 ARG BACKEND_URL=http://backend:4100
 ENV BACKEND_URL=$BACKEND_URL
+# Header HSTS chỉ khi chạy HTTPS (next.config.ts)
+ARG ENABLE_HSTS=false
+ENV ENABLE_HSTS=$ENABLE_HSTS
 RUN npm run build
 
 # ---- runtime: bản standalone (chỉ file cần chạy) ----

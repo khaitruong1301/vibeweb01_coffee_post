@@ -33,6 +33,9 @@ services:
       CORS_ORIGIN: http://localhost:3200
       PORT: 4100
       SEED: "true"
+      TEST_REPORT_PATH: /app/reports/test-report.json
+    volumes:
+      - ./reports:/app/reports:ro   # để E2E/a11y kiểm trang /quality với báo cáo thật (nếu có)
     ports:
       - "4200:4100"
     # 127.0.0.1 chứ không phải localhost: Alpine có thể phân giải localhost → ::1 (IPv6), API chỉ nghe IPv4

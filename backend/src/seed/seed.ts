@@ -6,10 +6,10 @@ import { CATEGORIES, DEMO_PASSWORD, PRODUCTS, USERS } from './seed-data';
  * Nạp dữ liệu mẫu. Mặc định chỉ chạy khi DB chưa có tài khoản nào — container khởi động lại
  * không ghi đè giá chủ quán đã sửa.
  */
-export async function seedDatabase(prisma: PrismaClient, opts: { onlyIfEmpty?: boolean } = {}) {
+export async function seedDatabase(prisma: PrismaClient, opts: { onlyIfEmpty?: boolean; password?: string } = {}) {
   if (opts.onlyIfEmpty && (await prisma.user.count()) > 0) return { skipped: true };
 
-  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const passwordHash = await bcrypt.hash(opts.password ?? DEMO_PASSWORD, 10);
   for (const u of USERS) {
     await prisma.user.upsert({ where: { username: u.username }, update: {}, create: { ...u, passwordHash } });
   }

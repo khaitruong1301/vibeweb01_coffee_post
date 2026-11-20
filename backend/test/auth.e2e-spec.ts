@@ -17,6 +17,7 @@ const MATRIX: { method: 'get' | 'post' | 'patch'; path: string; body?: object; r
   { method: 'get', path: '/api/orders/CP-000001', roles: ['cashier', 'barista', 'admin'] },
   { method: 'patch', path: '/api/orders/1/status', body: { status: 'preparing' }, roles: ['barista', 'admin'] },
   { method: 'get', path: '/api/quality/report', roles: ['admin'] },
+  { method: 'patch', path: '/api/auth/password', body: {}, roles: ['cashier', 'barista', 'admin'] },
 ];
 
 /** #7 Authentication & Authorization. */
@@ -89,6 +90,56 @@ describe('Xác thực & phân quyền', () => {
       await t.prisma.user.update({ where: { username: 'phache2' }, data: { role: 'cashier' } });
       await t.api().post('/api/orders').set(t.as('phache2')).send(body).expect(201);
       await t.prisma.user.update({ where: { username: 'phache2' }, data: { role: 'barista' } });
+    });
+  });
+
+  describe('thu hồi phiên & đổi mật khẩu (V3)', () => {
+    const freshLogin = async (username: string, password = 'Coffee@123') => {
+      const res = await t.api().post('/api/auth/login').send({ username, password }).expect(200);
+      return { token: res.body.token as string, cookie: res.headers['set-cookie'] as unknown as string[] };
+    };
+
+    it('token không có claim ver (cấp trước bản vá) → 401', async () => {
+      const legacy = jwt.sign({ sub: 2, role: 'cashier' });
+      await t.api().get('/api/auth/me').set('Authorization', `Bearer ${legacy}`).expect(401);
+    });
+
+    it('đăng xuất thu hồi token: dùng lại token cũ (Bearer hoặc cookie) → 401', async () => {
+      const a = await freshLogin('thungan3');
+      await t.api().get('/api/auth/me').set('Authorization', `Bearer ${a.token}`).expect(200);
+      await t.api().post('/api/auth/logout').set('Authorization', `Bearer ${a.token}`).expect(204);
+      const res = await t.api().get('/api/auth/me').set('Authorization', `Bearer ${a.token}`).expect(401);
+      expect(res.body.error).toContain('Phiên đăng nhập đã kết thúc');
+      await t.api().get('/api/auth/me').set('Cookie', a.cookie).expect(401);
+      await freshLogin('thungan3'); // đăng nhập lại bình thường
+    });
+
+    it('đổi mật khẩu: sai mật khẩu hiện tại / mật khẩu yếu → 400 theo từng trường', async () => {
+      const a = await freshLogin('thungan3');
+      const auth = { Authorization: `Bearer ${a.token}` };
+      const wrong = await t.api().patch('/api/auth/password').set(auth).send({ currentPassword: 'sai', newPassword: 'CaPhe2026x' }).expect(400);
+      expect(wrong.body.details.currentPassword).toBe('Mật khẩu hiện tại không đúng');
+      const weak = await t.api().patch('/api/auth/password').set(auth).send({ currentPassword: 'Coffee@123', newPassword: 'abcdefgh' }).expect(400);
+      expect(weak.body.details.newPassword).toContain('chữ số');
+      const same = await t.api().patch('/api/auth/password').set(auth).send({ currentPassword: 'Coffee@123', newPassword: 'Coffee@123' }).expect(400);
+      expect(same.body.details.newPassword).toBeDefined();
+    });
+
+    it('đổi mật khẩu thành công: phiên khác bị thu hồi, phiên hiện tại nhận token mới, đăng nhập bằng mật khẩu mới', async () => {
+      const other = await freshLogin('phache3');
+      const me = await freshLogin('phache3');
+      const res = await t
+        .api()
+        .patch('/api/auth/password')
+        .set('Authorization', `Bearer ${me.token}`)
+        .send({ currentPassword: 'Coffee@123', newPassword: 'PhaChe2026!' })
+        .expect(200);
+      expect(res.headers['set-cookie'][0]).toMatch(/coffeepos_token=.+HttpOnly/);
+      await t.api().get('/api/auth/me').set('Authorization', `Bearer ${other.token}`).expect(401);
+      await t.api().get('/api/auth/me').set('Authorization', `Bearer ${me.token}`).expect(401);
+      await t.api().get('/api/auth/me').set('Authorization', `Bearer ${res.body.token}`).expect(200);
+      await t.api().post('/api/auth/login').send({ username: 'phache3', password: 'Coffee@123' }).expect(401);
+      await freshLogin('phache3', 'PhaChe2026!');
     });
   });
 

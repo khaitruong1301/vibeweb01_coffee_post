@@ -23,6 +23,7 @@ Base URL: `http://localhost:4100/api` (trực tiếp) · `http://localhost:3100/
 | 403 | sai vai trò |
 | 404 | không tìm thấy |
 | 409 | trùng dữ liệu (tên món), chuyển trạng thái sai thứ tự / bị người khác cập nhật trước |
+| 429 | đăng nhập / nhập mật khẩu hiện tại sai quá 5 lần mỗi tài khoản hoặc 20 lần mỗi IP trong 15 phút — kèm header `Retry-After` (giây) |
 | 500 | lỗi hệ thống (không lộ chi tiết) |
 
 **Field lạ bị bỏ qua**: ValidationPipe `whitelist` loại mọi field không khai báo — gửi `price`, `total` lên cũng không có tác dụng.
@@ -34,8 +35,9 @@ Base URL: `http://localhost:4100/api` (trực tiếp) · `http://localhost:3100/
 | GET | `/docs` · `/docs-json` | công khai | Swagger UI · OpenAPI 3 JSON | — |
 | GET | `/health` | công khai | API + kết nối DB | — |
 | POST | `/auth/login` | công khai | đăng nhập | UC01 |
-| POST | `/auth/logout` | công khai | xóa cookie (204) | UC01 |
+| POST | `/auth/logout` | công khai | xóa cookie + **thu hồi mọi token** của tài khoản (204) | UC01 |
 | GET | `/auth/me` | đã đăng nhập | tài khoản hiện tại | UC01 |
+| PATCH | `/auth/password` | đã đăng nhập | đổi mật khẩu; thu hồi phiên ở thiết bị khác, cấp token + cookie mới | UC01 |
 | GET | `/categories` | đã đăng nhập | danh mục | UC06 |
 | GET | `/products` | đã đăng nhập | menu đang bán; `?all=true` gồm món ngừng bán (chỉ admin, khác → 403) | UC02, UC06 |
 | POST | `/products` | admin | thêm món | UC06 |
@@ -44,6 +46,7 @@ Base URL: `http://localhost:4100/api` (trực tiếp) · `http://localhost:3100/
 | GET | `/orders` | đã đăng nhập | danh sách đơn, `?status=pending,preparing,ready` (mặc định), `?limit=` ≤ 200, cũ nhất trước | UC05 |
 | GET | `/orders/:code` | đã đăng nhập | chi tiết đơn theo mã `CP-000123` (sai định dạng / không có → 404) | UC03 |
 | PATCH | `/orders/:id/status` | barista, admin | chuyển sang bước kế tiếp | UC05 |
+| GET | `/quality/report` | admin | báo cáo kiểm thử tự động (đọc `reports/test-report.json`); chưa có → 404, file hỏng → 500 | — |
 
 ## 3. Chi tiết
 
@@ -52,7 +55,16 @@ Base URL: `http://localhost:4100/api` (trực tiếp) · `http://localhost:3100/
 ```json
 { "username": "thungan1", "password": "Coffee@123" }
 ```
-**200** → `{ "user": { "id": 2, "username": "thungan1", "fullName": "Thu ngân Lan", "role": "cashier" }, "token": "eyJ..." }` + `Set-Cookie`. Sai → 401 `Sai tên đăng nhập hoặc mật khẩu` (cùng thông báo cho mọi trường hợp).
+**200** → `{ "user": { "id": 2, "username": "thungan1", "fullName": "Thu ngân Lan", "role": "cashier" }, "token": "eyJ..." }` + `Set-Cookie`. Sai → 401 `Sai tên đăng nhập hoặc mật khẩu` (cùng thông báo cho mọi trường hợp, kể cả tên không tồn tại). Sai quá nhiều → 429.
+
+Token JWT gồm `sub`, `role`, `ver` (= `users.token_version`). Đăng xuất / đổi mật khẩu tăng `token_version` → token cũ trả 401 `Phiên đăng nhập đã kết thúc`.
+
+### PATCH `/auth/password`
+
+```json
+{ "currentPassword": "Coffee@123", "newPassword": "CaPhe2026!" }
+```
+Mật khẩu mới: 8–72 ký tự (≤ 72 byte), có chữ và số, khác mật khẩu cũ, không chứa tên đăng nhập, không thuộc danh sách phổ biến (gồm `Coffee@123`). **200** → như đăng nhập (token + cookie mới). Lỗi: 400 `details.currentPassword` / `details.newPassword`; 429 khi nhập sai mật khẩu hiện tại quá nhiều.
 
 ### GET `/products`
 

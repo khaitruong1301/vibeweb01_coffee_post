@@ -13,7 +13,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary', 'text', 'html', 'lcov', 'json-summary'],
       reportsDirectory: './coverage',
-      include: ['src/lib/**', 'src/components/**', 'src/app/**/checkout/**'],
+      include: ['src/lib/**', 'src/components/**', 'src/app/**/checkout/**', 'src/app/**/quality/**', 'src/app/**/account/**'],
       exclude: ['src/lib/types.ts', '**/*.test.*'],
       thresholds: { lines: 85, functions: 75, branches: 80, statements: 85 },
     },

@@ -34,9 +34,14 @@ export function Navbar() {
             );
           })}
         </nav>
-        <span className="hidden text-sm text-muted sm:inline">
+        <Link
+          href="/account"
+          title="Tài khoản · đổi mật khẩu"
+          aria-current={pathname.startsWith('/account') ? 'page' : undefined}
+          className="hidden rounded-lg px-2 py-1 text-sm text-muted hover:bg-secondary sm:inline"
+        >
           {ROLE_LABEL[user.role]}: <b className="text-foreground">{user.fullName}</b>
-        </span>
+        </Link>
         <button type="button" onClick={logout} className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-secondary">
           Đăng xuất
         </button>

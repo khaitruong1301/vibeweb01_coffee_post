@@ -72,12 +72,15 @@ describe('Navbar', () => {
   it.each([
     ['cashier', ['Bán hàng']],
     ['barista', ['Quầy pha']],
-    ['admin', ['Bán hàng', 'Quầy pha', 'Sản phẩm']],
+    ['admin', ['Bán hàng', 'Quầy pha', 'Sản phẩm', 'Kiểm thử']],
   ] as [Role, string[]][])('vai %s chỉ thấy menu %j', async (role, links) => {
     mockMe(200, user(role));
     render(<AuthProvider><Navbar /></AuthProvider>);
     await screen.findByRole('navigation');
-    const shown = screen.getAllByRole('link').map((a) => a.textContent).filter((t) => t !== '☕ CoffeePOS');
+    const shown = screen
+      .getAllByRole('link')
+      .filter((a) => !['/', '/account'].includes(a.getAttribute('href') ?? ''))
+      .map((a) => a.textContent);
     expect(shown).toEqual(links);
   });
 

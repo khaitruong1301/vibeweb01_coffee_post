@@ -36,6 +36,12 @@ paths:
 - Chuyển trạng thái đơn theo `NEXT_STATUS` (`order-status.ts`), cập nhật có điều kiện (`updateMany where status = cũ`) để chống race.
 - Mã đơn `CP-000123` suy ra từ id (`order-code.ts`), không lưu cột riêng.
 
+## Bảo mật (đã có — không làm yếu đi)
+- Đăng nhập / kiểm tra mật khẩu đi qua `LoginLimiter` (`auth/login-limiter.ts`); thông báo sai luôn giống nhau, kể cả tên không tồn tại.
+- JWT có claim `ver` = `users.token_version`; thao tác làm mất hiệu lực phiên (đăng xuất, đổi mật khẩu, khoá tài khoản) phải tăng `token_version`.
+- Header bảo mật bằng helmet trong `app.factory.ts`; route mới trả HTML phải có CSP phù hợp.
+- Cấu hình production kiểm tra trong `productionConfigErrors()` (`config.ts`) — thêm biến bí mật mới thì thêm kiểm tra.
+
 ## Lỗi & phản hồi
 - Ném `BadRequestException({ error: '...' })`, `NotFoundException({ error })`, `ConflictException({ error })`… — `AllExceptionsFilter` trả `{ error, details? }`, đổi lỗi Prisma P2002 → 409, P2025 → 404, vi phạm CHECK → 400.
 - Không trả `passwordHash`; luôn `select`/`include` có chủ đích.

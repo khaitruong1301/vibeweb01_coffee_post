@@ -110,7 +110,45 @@ describe('Bảo mật API', () => {
     });
   });
 
-  // Chưa có trong code — ghi nhận trong TEST_CHECKLIST.md (khuyến nghị), không viết test giả "pass".
-  it.todo('giới hạn số lần đăng nhập sai (rate limit chống dò mật khẩu)');
-  it.todo('header bảo mật (helmet: CSP, X-Frame-Options, HSTS khi chạy HTTPS)');
+  describe('Chống dò mật khẩu (V2)', () => {
+    const login = (username: string, password: string) => t.api().post('/api/auth/login').send({ username, password });
+
+    it('sai 5 lần → lần 6 bị 429 kèm Retry-After, kể cả khi nhập đúng mật khẩu', async () => {
+      for (let i = 0; i < 5; i++) await login('thungan2', `sai-${i}`).expect(401);
+      const blocked = await login('thungan2', 'Coffee@123').expect(429);
+      expect(blocked.body.error).toMatch(/quá nhiều lần/);
+      expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+    });
+
+    it('khoá theo tài khoản không ảnh hưởng tài khoản khác', async () => {
+      await login('thungan1', 'Coffee@123').expect(200);
+    });
+
+    it('tên đăng nhập không tồn tại cũng bị khoá như thường (không lộ tài khoản nào có thật)', async () => {
+      for (let i = 0; i < 5; i++) await login('khong-ton-tai', 'x').expect(401);
+      await login('khong-ton-tai', 'x').expect(429);
+    });
+  });
+
+  describe('Header bảo mật (V4 — helmet)', () => {
+    it('API: chặn nhúng iframe, chặn đoán MIME, CSP chặn mọi tài nguyên', async () => {
+      const res = await t.api().get('/api/health').expect(200);
+      expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['content-security-policy']).toContain("default-src 'none'");
+      expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+      expect(res.headers['referrer-policy']).toBe('no-referrer');
+    });
+
+    it('chưa bật HTTPS (COOKIE_SECURE) thì không gửi HSTS', async () => {
+      const res = await t.api().get('/api/health');
+      expect(res.headers['strict-transport-security']).toBeUndefined();
+    });
+
+    it('Swagger UI có CSP riêng cho phép script / style của chính nó', async () => {
+      const res = await t.api().get('/api/docs/').expect(200);
+      expect(res.headers['content-security-policy']).toContain("script-src 'self' 'unsafe-inline'");
+      expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    });
+  });
 });

@@ -2,9 +2,9 @@
 // Model PascalCase số ít ↔ bảng snake_case số nhiều; tiền là Int (VNĐ); thời điểm timestamptz (UTC).
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
   // Cố định import không đuôi để `nest build` (CommonJS) chạy được, kể cả khi generate lúc chưa có tsconfig.
   importFileExtension = ""
 }
@@ -49,6 +49,8 @@ model User {
   fullName     String   @map("full_name") @db.VarChar(100)
   role         Role
   isActive     Boolean  @default(true) @map("is_active")
+  /// Tăng khi đăng xuất / đổi mật khẩu → mọi token cũ (claim `ver`) bị từ chối.
+  tokenVersion Int      @default(0) @map("token_version")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

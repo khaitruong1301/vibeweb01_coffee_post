@@ -11,4 +11,6 @@ export interface AuthUser {
 export interface JwtPayload {
   sub: number;
   role: Role;
+  /** = users.token_version lúc cấp; tăng khi đăng xuất / đổi mật khẩu → token cũ bị từ chối. */
+  ver: number;
 }

@@ -27,7 +27,7 @@ Wireframe màn hình (draw.io, 9 trang): `../ui-ux/wireframe-man-hinh.drawio`
 
 | Mã | Tên | Tác nhân | Màn hình / API |
 |---|---|---|---|
-| UC01 | Đăng nhập | Nhân viên | — |
+| UC01 | Đăng nhập, đăng xuất, đổi mật khẩu | Nhân viên | `/login`, `/account` → `/api/auth/*` (sai quá 5 lần / 15 phút bị khoá tạm) |
 | UC02 | Bán hàng tại quầy (tạo đơn & thanh toán) | Thu ngân | `/checkout` → `POST /api/orders` |
 | UC03 | In hóa đơn | Thu ngân | `/receipt/CP-000123` → `GET /api/orders/:code` |
 | UC04 | Nhận đơn giao đồ ăn | Thu ngân, GrabFood/ShopeeFood | `/checkout` chọn nguồn + nhập mã đơn đối tác (nhập tay) |

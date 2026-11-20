@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { Response } from 'express';
+import { TooManyAttemptsException } from '../auth/login-limiter';
 import { Prisma } from '../generated/prisma/client';
 
 /** Đổi mọi lỗi thành `{ error: "<tiếng Việt>", details? }`, không lộ stack trace / câu SQL. */
@@ -10,6 +11,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const res = host.switchToHttp().getResponse<Response>();
     const { status, body } = this.toResponse(exception);
+    if (exception instanceof TooManyAttemptsException) res.setHeader('Retry-After', String(exception.retryAfterSec));
     if (status >= 500) this.logger.error(exception instanceof Error ? exception.stack : String(exception));
     res.status(status).json(body);
   }
@@ -55,5 +57,6 @@ const DEFAULT_MESSAGES: Record<number, string> = {
   404: 'Không tìm thấy',
   409: 'Xung đột dữ liệu',
   413: 'Dữ liệu gửi lên quá lớn',
+  429: 'Thao tác quá nhiều lần, vui lòng đợi rồi thử lại',
   415: 'Định dạng dữ liệu không được hỗ trợ',
 };

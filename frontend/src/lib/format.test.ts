@@ -22,7 +22,8 @@ describe('roles', () => {
     expect(homeOf('admin')).toBe('/products');
   });
 
-  it('menu "Sản phẩm" chỉ dành cho Chủ quán', () => {
+  it('menu "Sản phẩm" và "Kiểm thử" chỉ dành cho Chủ quán', () => {
     expect(NAV.find((n) => n.href === '/products')?.roles).toEqual(['admin']);
+    expect(NAV.find((n) => n.href === '/quality')?.roles).toEqual(['admin']);
   });
 });

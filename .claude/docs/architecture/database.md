@@ -14,7 +14,7 @@ users 1─n products (updated_by_id — người sửa giá lần cuối)
 
 | Bảng (model) | Cột chính | Ghi chú |
 |---|---|---|
-| `users` (User) | `username` unique, `password_hash`, `full_name`, `role` (Role), `is_active` | bcrypt; tài khoản khóa không đăng nhập / dùng token được |
+| `users` (User) | `username` unique, `password_hash`, `full_name`, `role` (Role), `is_active`, `token_version` | bcrypt; tài khoản khóa không đăng nhập / dùng token được; `token_version` tăng khi đăng xuất / đổi mật khẩu → token cũ bị từ chối (migration `user_token_version`) |
 | `categories` (Category) | `name` unique, `sort_order` | |
 | `products` (Product) | `category_id`, `name` unique, `price`, `has_size`, `is_active`, `image_url?`, `updated_by_id?` | `price` là giá size S/M; giá L do code tính (BR05) |
 | `orders` (Order) | `cashier_id`, `source` (OrderSource), `partner_code?`, `note?`, `status` (OrderStatus), `total` | mã `CP-000123` suy ra từ `id`, không lưu |
@@ -48,6 +48,6 @@ CHECK constraint được thêm thủ công trong migration `init` — lớp ch�
 
 ## 5. Dữ liệu mẫu (`backend/src/seed/`)
 
-- 7 tài khoản (mật khẩu `Coffee@123`): `chuquan` (admin), `thungan1..3` (cashier), `phache1..3` (barista).
+- 7 tài khoản (mật khẩu `Coffee@123` ở dev; production dùng `SEED_PASSWORD` — bắt buộc): `chuquan` (admin), `thungan1..3` (cashier), `phache1..3` (barista).
 - 4 danh mục, 13 món (2 món bánh không size, 1 món ngừng bán "Sinh tố bơ").
 - Chỉ nạp khi bảng `users` trống — khởi động lại container không ghi đè giá đã sửa. e2e dùng `resetDatabase()` (TRUNCATE + nạp lại) trên DB test.
