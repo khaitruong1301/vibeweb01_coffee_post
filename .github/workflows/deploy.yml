@@ -1,0 +1,123 @@
+# CD CoffeePOS — deploy THỦ CÔNG: Actions → Deploy → Run workflow (hoặc `gh workflow run deploy.yml -f ref=main`).
+# Push lên main chỉ chạy CI, không tự deploy. Mặc định chỉ cho deploy commit đã có CI xanh.
+# Server tự build image và chạy docker-compose.yml với .env production (xem scripts/deploy.sh):
+# DB và API chỉ nghe trên 127.0.0.1, chỉ web (FRONTEND_PORT) mở ra Internet.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS  — kết nối server
+#   JWT_SECRET (≥ 32 ký tự), DB_PASSWORD                   — ghi vào .env trên server
+#   SEED_PASSWORD   — mật khẩu cho tài khoản seed; BẮT BUỘC khi SEED=true (không dùng mật khẩu demo công khai)
+#     (DB_PASSWORD chỉ có hiệu lực khi volume DB tạo lần đầu — đổi sau đó phải đổi cả trong Postgres)
+# Variables (tuỳ chọn): FRONTEND_PORT (mặc định 3100), SEED (mặc định true), DEPLOY_URL (link hiển thị),
+#   COOKIE_SECURE (true khi web chạy HTTPS → cookie Secure + HSTS), SWAGGER_ENABLED (mặc định tắt trên production)
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag hoặc commit SHA cần deploy (rollback = nhập commit cũ)
+        default: main
+        required: true
+      skip_ci_check:
+        description: Bỏ qua kiểm tra CI xanh (chỉ dùng khi khẩn cấp)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read   # đọc kết quả CI của commit
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy lên server
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Xác định commit + kiểm tra CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP: ${{ inputs.skip_ci_check }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "SHA=$SHA" >> "$GITHUB_ENV"
+          echo "Deploy ${{ inputs.ref }} → $(git log -1 --format='%h %s')"
+          if [ "$SKIP" = "true" ]; then
+            echo "::warning::Bỏ qua kiểm tra CI theo yêu cầu"; exit 0
+          fi
+          OK=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --status success --json databaseId --jq length)
+          if [ "$OK" -eq 0 ]; then
+            echo "::error::Commit ${SHA::7} chưa có lần chạy CI thành công — chờ CI xanh hoặc chọn skip_ci_check"; exit 1
+          fi
+          echo "CI đã xanh cho ${SHA::7}"
+
+      - name: Cấu hình SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Ghi .env trên server
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          COOKIE_SECURE: ${{ vars.COOKIE_SECURE || 'false' }}
+          SWAGGER_ENABLED: ${{ vars.SWAGGER_ENABLED || 'false' }}
+          FRONTEND_PORT: ${{ vars.FRONTEND_PORT || '3100' }}
+          SEED: ${{ vars.SEED || 'true' }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          test -n "$JWT_SECRET" && test -n "$DB_PASSWORD" || { echo "Thiếu secret JWT_SECRET / DB_PASSWORD"; exit 1; }
+          [ "${#JWT_SECRET}" -ge 32 ] || { echo "JWT_SECRET phải dài tối thiểu 32 ký tự"; exit 1; }
+          if [ "$SEED" = "true" ] && [ -z "$SEED_PASSWORD" ]; then
+            echo "SEED=true cần secret SEED_PASSWORD — không seed tài khoản bằng mật khẩu demo công khai"; exit 1
+          fi
+          {
+            echo "JWT_SECRET=\"$JWT_SECRET\""
+            echo "DB_PASSWORD=\"$DB_PASSWORD\""
+            echo "APP_ENV=production"
+            echo "SEED=$SEED"
+            echo "SEED_PASSWORD=\"$SEED_PASSWORD\""
+            echo "COOKIE_SECURE=$COOKIE_SECURE"
+            echo "SWAGGER_ENABLED=$SWAGGER_ENABLED"
+            echo "FRONTEND_PORT=$FRONTEND_PORT"
+            echo "BACKEND_PORT=4100"
+            echo "DB_BIND=127.0.0.1"
+            echo "BACKEND_BIND=127.0.0.1"
+            echo "CORS_ORIGIN=\"${DEPLOY_URL:-http://localhost:$FRONTEND_PORT}\""
+          } | ssh server 'umask 077 && mkdir -p /opt/coffeepos && cat > /opt/coffeepos/.env'
+
+      - name: Deploy (git fetch → docker compose up --build → health check)
+        run: ssh server "bash -s -- https://github.com/${{ github.repository }}.git $SHA" < scripts/deploy.sh
+
+      - name: Tóm tắt
+        if: always()
+        run: |
+          echo "### Deploy \`${SHA::7}\` (${{ inputs.ref }}) — ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "${{ vars.DEPLOY_URL }}" ] && echo "Web: ${{ vars.DEPLOY_URL }}" >> "$GITHUB_STEP_SUMMARY" || true

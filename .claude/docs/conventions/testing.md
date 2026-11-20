@@ -1,6 +1,6 @@
 # Quy ước kiểm thử
 
-Theo dõi tổng thể: `TEST_CHECKLIST.md` (gốc repo).
+Theo dõi tổng thể: `TEST_CHECKLIST.md` (gốc repo). CI: `.github/workflows/ci.yml`.
 
 ## Đặt test ở đâu
 

@@ -27,8 +27,10 @@ Quy tắc chính (chi tiết trong `.claude/rules/`):
 Chạy (Node 22: `export PATH=$HOME/.nvm/versions/node/v22.17.0/bin:$PATH`):
 - Toàn bộ bằng Docker: `docker compose up -d --build` → web http://localhost:3100 · API http://localhost:4100/api · Swagger http://localhost:4100/api/docs · DB localhost:5435.
 - Dev local: `docker compose up -d db` · `cd backend && npm run dev` · `cd frontend && npm run dev`.
-- Kiểm tra (chi tiết `TEST_CHECKLIST.md`, quy ước `.claude/docs/conventions/testing.md`): `npm run static` · `npm run test:unit` · `npm run test:api` · E2E: `npm run stack:e2e:up && npm run test:smoke && PW_CHANNEL=chrome npm run test:e2e` · tất cả: `npm run test:all`.
+- Kiểm tra (chi tiết `TEST_CHECKLIST.md`, quy ước `.claude/docs/conventions/testing.md`): `npm run static` · `npm run test:unit` · `npm run test:api` · E2E: `npm run stack:e2e:up && npm run test:smoke && PW_CHANNEL=chrome npm run test:e2e` · tất cả: `npm run test:all`. CI: `.github/workflows/ci.yml` chạy khi tạo PR / push `main`; CD: `.github/workflows/deploy.yml` deploy **thủ công** (Actions → Deploy → Run workflow), chỉ cho commit đã có CI xanh (overview mục 7).
+- Báo cáo kiểm thử trên web: trang `/quality` (chỉ admin) đọc `reports/test-report.json` — tạo bằng `npm run test:report` (đầy đủ) / `test:report:quick` / `test:report:build`.
 - Đổi schema: `cd backend && npm run db:migrate -- --name <ten>`.
-- Tài khoản demo (mật khẩu `Coffee@123`): `chuquan` (admin), `thungan1..3`, `phache1..3`.
+- Tài khoản demo (chỉ dev, mật khẩu `Coffee@123`): `chuquan` (admin), `thungan1..3`, `phache1..3`. Production: `APP_ENV=production` bắt buộc `JWT_SECRET` mạnh + `SEED_PASSWORD`.
+- Bảo mật đã có (giữ khi sửa code): giới hạn đăng nhập sai (`auth/login-limiter.ts`), thu hồi token bằng `token_version`, helmet + header Next, Swagger tắt ở production.
 
 Skill / lệnh: `/tao-api`, `/tao-trang`, `/tao-migration`, `/kiem-tra-giao-dien`, `/cap-nhat-docs`, `/kiem-tra`, `/review`, `/commit`, `/cap-nhat-doc`. Agent: `code-reviewer`, `ui-reviewer`.

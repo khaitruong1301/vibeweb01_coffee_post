@@ -1,12 +1,21 @@
 # TEST CHECKLIST — CoffeePOS
 
 Theo dõi 15 hạng mục kiểm thử tự động. Cập nhật cột **Kết quả** mỗi khi thêm/sửa test.
-Lần chạy gần nhất: **19/11/2026** (máy local, Node 22.17, Docker Desktop, Chrome) — **tất cả ĐẠT**.
+Lần chạy gần nhất: **20/11/2026** (máy local, Node 22.17, Docker Desktop, Chrome) — **303/303 test ĐẠT, 0 todo**; CI trên GitHub xanh.
 
-> **Nguyên tắc an toàn:** không test nào chạm DB production và không có bước deploy.
+> **Nguyên tắc an toàn:** không test nào chạm DB production; workflow kiểm thử (`ci.yml`) không deploy — deploy nằm ở `deploy.yml`, chỉ chạy thủ công và chỉ cho commit đã có CI xanh.
 > - e2e backend ép `DATABASE_URL = DATABASE_URL_TEST` (bắt buộc hậu tố `_test`, mặc định `coffeepos_test`).
 > - E2E trình duyệt, smoke, load chạy trên `docker-compose.e2e.yml`: DB trên RAM, cổng 3200/4200/5436, tắt là mất.
 > - Load test từ chối chạy nếu không phải cổng 4200 (trừ khi đặt `PERF_TARGET_CONFIRMED=yes`).
+
+## 0. Xem trên web (chỉ Chủ quán)
+
+Trang **`/quality`** trong CoffeePOS (menu "Kiểm thử", chỉ tài khoản admin `chuquan`) hiển thị báo cáo mới nhất: ô tổng quan, 15 hạng mục (mở từng hạng mục để xem từng test case, lọc Không đạt / Chưa làm, đọc lỗi), coverage có vạch ngưỡng, load test, smoke, lần chạy CI trên GitHub, lỗi đã phát hiện và khuyến nghị.
+
+- Dữ liệu: `reports/test-report.json`, sinh bởi `scripts/test-report.mjs` từ kết quả thật (Jest JSON, JUnit của Vitest/Playwright, coverage-summary, perf.json, output smoke, `gh run list`).
+- Cập nhật: `npm run test:report` (đầy đủ, cần Docker) · `npm run test:report:quick` (bỏ phần Docker, giữ kết quả cũ của chúng) · `npm run test:report:build` (chỉ gom lại). Sau đó bấm **Tải lại** trên trang.
+- Phân quyền chặn ở **server**: `GET /api/quality/report` gắn `@Auth('admin')` — thu ngân / pha chế nhận 403 (có trong ma trận `auth.e2e-spec.ts` và `e2e/tests/quality.spec.ts`).
+- Docker: backend mount `./reports` chỉ đọc vào `/app/reports`.
 
 ## 1. Công nghệ & lựa chọn công cụ
 
@@ -27,51 +36,54 @@ Lần chạy gần nhất: **19/11/2026** (máy local, Node 22.17, Docker Deskto
 | 4 | Integration Testing | ⚪ gộp | — (xem ghi chú) | — | Gộp vào #5 và #8 |
 | 5 | API Testing | ✅ | `backend/test/orders.e2e-spec.ts`, `products.e2e-spec.ts`, `swagger.e2e-spec.ts` | `npm run test:api` | ✅ |
 | 6 | End-to-End | ✅ | `e2e/tests/sales.spec.ts` | `npm run test:e2e` | ✅ 9 kịch bản |
-| 7 | Auth & Authorization | ✅ | `backend/test/auth.e2e-spec.ts` + `frontend/src/__tests__/auth.test.tsx` | `npm run test:api` | ✅ ma trận 10 route × 4 trạng thái |
+| 7 | Auth & Authorization | ✅ | `backend/test/auth.e2e-spec.ts` + `frontend/src/__tests__/auth.test.tsx` | `npm run test:api` | ✅ ma trận 11 route × 4 trạng thái, khoá đăng nhập, thu hồi token, đổi mật khẩu |
 | 8 | Database Testing | ✅ | `backend/test/database.e2e-spec.ts` | `npm run test:api` | ✅ |
-| 9 | Security Testing | ✅ | `backend/test/security.e2e-spec.ts`, `npm audit` | `npm run test:api`, `npm run audit` | ✅ (2 mục `todo` là khuyến nghị) |
+| 9 | Security Testing | ✅ | `backend/test/security.e2e-spec.ts`, `src/config.spec.ts`, `e2e/tests/security.spec.ts`, `npm audit` | `npm run test:api`, `npm run audit` | ✅ (đã vá V1–V7, 0 todo) |
 | 10 | Performance & Load | ✅ | `e2e/perf/load-test.mjs` | `npm run test:perf` | ✅ 3/3 kịch bản |
 | 11 | Accessibility | ✅ | `e2e/tests/a11y.spec.ts` | `npm run test:a11y` | ✅ 5 màn hình, 0 vi phạm serious/critical |
 | 12 | Regression | ✅ (không viết lại) | các test gắn mã `BR0x` / `L1–L3` | `npm run test:regression` | ✅ 39 test |
 | 13 | Smoke Testing | ✅ | `scripts/smoke.sh`, `e2e/tests/smoke.spec.ts` (`@smoke`) | `npm run test:smoke` | ✅ 11/11 + 6 |
 | 14 | Coverage Reporting | ✅ | Jest (lcov/html/json-summary), Vitest v8, JUnit XML | `npm run coverage:summary` | ✅ vượt ngưỡng |
-| 15 | CI/CD Automated Testing | _(dự kiến)_ | — | — | Chưa có workflow |
+| 15 | CI/CD Automated Testing | ✅ | `.github/workflows/ci.yml` | tự chạy khi tạo PR | ✅ CI trên GitHub xanh (4 job) |
 
 **Vì sao #4 không có bộ riêng:** API test (#5) dựng ứng dụng Nest thật, gồm guard, pipe, filter, Prisma và PostgreSQL thật, nên đó đã là integration test giữa các tầng. Test database (#8) kiểm phần tích hợp với DB. Thêm một bộ "service + DB" riêng sẽ trùng lặp. Tích hợp frontend ↔ backend qua proxy Next được E2E (#6) và smoke (#13) bao phủ.
 
 ## 3. Kết quả chi tiết lần chạy gần nhất
 
-| Bộ test | Số test | Đạt | Không đạt | Bỏ qua / todo | Thời gian |
-|---|---|---|---|---|---|
-| Static (ESLint + tsc, 2 phía) | — | ✅ | 0 | — | ~20 s |
-| npm audit (production deps) | — | 0 lỗ hổng | — | — | — |
-| Backend unit (Jest) | 47 | 47 | 0 | 0 | ~6 s |
-| Backend API/Auth/DB/Security (Jest + supertest) | 124 | 122 | 0 | 2 todo | ~8 s |
-| Frontend unit + component (Vitest) | 49 | 49 | 0 | 0 | ~4 s |
-| Smoke script (curl) | 11 | 11 | 0 | 0 | ~2 s |
-| Playwright E2E + a11y + smoke | 20 | 20 | 0 | 0 | ~33 s |
-| Load test (autocannon) | 3 kịch bản | 3 | 0 | 0 | 45 s |
-| **Tổng** | **254** | **252** | **0** | **2 todo** | |
+Nguồn: `npm run test:report` (cũng hiển thị trên trang `/quality`).
+
+| Bộ test | Số test | Đạt | Không đạt | Bỏ qua / todo |
+|---|---|---|---|---|
+| Static (ESLint + tsc, 2 phía) | — | ✅ | 0 | — |
+| npm audit (production deps) · toàn bộ deps | — | 0 lỗ hổng · 0 lỗ hổng | — | — |
+| Backend unit (Jest) | 69 | 69 | 0 | 0 |
+| Backend API / Auth / DB / Security (Jest + supertest) | 144 | 144 | 0 | 0 |
+| Frontend unit + component (Vitest + RTL) | 63 | 63 | 0 | 0 |
+| Playwright E2E + a11y + smoke + bảo mật | 27 | 27 | 0 | 0 |
+| Smoke script (curl) | 11 | 11 | 0 | 0 |
+| Load test (autocannon) | 3 kịch bản | 3 | 0 | 0 |
+| CI trên GitHub Actions (lần chạy gần nhất) | 4 job | ✅ | — | — |
+| **Tổng test case** | **303** | **303** | **0** | **0** |
 
 ### Coverage
 
 | Bộ | Lines | Statements | Branches | Functions | Ngưỡng (L/B/F/S) |
 |---|---|---|---|---|---|
-| Backend unit (luật tính tiền, mã đơn, trạng thái, filter, validation) | 100% | 98.88% | 88.13% | 100% | 95 / 85 / 95 / 95 |
-| Backend e2e (toàn bộ `src/`) | 97.88% | 96.24% | 81.02% | 97.53% | 90 / 75 / 85 / 90 |
-| Frontend (lib, components, checkout) | 90.14% | 87.85% | 84.21% | 79.77% | 85 / 80 / 75 / 85 |
+| Backend unit (luật tính tiền, mã đơn, trạng thái, filter, validation, giới hạn đăng nhập) | 100% | 99.2% | 87.5% | 100% | 95 / 85 / 95 / 95 |
+| Backend e2e (toàn bộ `src/`) | 96.37% | 94.36% | 75.26% | 97.08% | 90 / 75 / 85 / 90 |
+| Frontend (lib, components, checkout, quality, account) | 93.48% | 90.4% | 83.72% | 86.36% | 85 / 80 / 75 / 85 |
 
-Báo cáo: `backend/coverage/{unit,e2e}/lcov-report/index.html`, `frontend/coverage/index.html`, `e2e/reports/html/index.html`, JUnit: `backend/reports/*.xml`, `frontend/reports/junit.xml`, `e2e/reports/junit-e2e.xml`, load: `e2e/reports/perf.md`.
+Báo cáo: `backend/coverage/{unit,e2e}/lcov-report/index.html`, `frontend/coverage/index.html`, `e2e/reports/html/index.html`, JUnit / Jest JSON: `backend/reports/`, `frontend/reports/junit.xml`, `e2e/reports/junit-e2e.xml`, load: `e2e/reports/perf.md`, tổng hợp: `reports/test-report.json`.
 
 ### Load test (stack Docker local, 15 giây/kịch bản)
 
 | Kịch bản | Kết nối | Req/s | p50 | p97.5 | p99 | Lỗi | Ngưỡng | KQ |
 |---|---|---|---|---|---|---|---|---|
-| Thu ngân mở menu — `GET /api/products` | 20 | 365 | 45 ms | 151 ms | 222 ms | 0 | p97.5 ≤ 300 ms | ✅ |
-| Bấm Thanh toán — `POST /api/orders` | 10 | 260 | 34 ms | 79 ms | 107 ms | 0 | p97.5 ≤ 500 ms | ✅ |
-| Quầy pha làm mới — `GET /api/orders?status=…` | 10 | 151 | 59 ms | 141 ms | 197 ms | 0 | p97.5 ≤ 500 ms | ✅ |
+| Thu ngân mở menu — `GET /api/products` | 20 | 1028 | 18 ms | 33 ms | 37 ms | 0 | p97.5 ≤ 300 ms | ✅ |
+| Bấm Thanh toán — `POST /api/orders` | 10 | 610 | 14 ms | 26 ms | 37 ms | 0 | p97.5 ≤ 500 ms | ✅ |
+| Quầy pha làm mới — `GET /api/orders?status=…` | 10 | 302 | 29 ms | 67 ms | 74 ms | 0 | p97.5 ≤ 500 ms | ✅ |
 
-Quy mô thật khoảng 150 đơn/ngày, cao điểm 7h–9h. Mức chịu tải đo được (khoảng 260 đơn/giây) gấp hàng chục nghìn lần nhu cầu cao điểm.
+Quy mô thật khoảng 150 đơn/ngày, cao điểm 7h–9h. Thêm helmet và giới hạn đăng nhập không làm chậm API.
 
 ## 4. Lỗi thật phát hiện nhờ test (đã sửa)
 
@@ -83,6 +95,13 @@ Quy mô thật khoảng 150 đơn/ngày, cao điểm 7h–9h. Mức chịu tải
 | #11 Accessibility (axe) | Nhãn "Đang bán" và "Ngừng bán" không đủ tương phản WCAG AA | Đổi màu (chữ trắng trên `success`, chữ `foreground` trên `secondary`) |
 | #1 Static (ESLint) | `bootstrap()` không bắt lỗi khởi động; 3 chỗ dùng `any` không an toàn | `.catch()` + thoát mã 1; khai báo kiểu |
 | #9 `npm audit` | vitest 3 kéo theo tinypool có 2 lỗ hổng **critical** (dev dependency) | Nâng vitest 5 → 0 lỗ hổng |
+| #9 Security — **V1 (cao)** | Deploy với `SEED=true` tạo tài khoản demo mật khẩu `Coffee@123` công khai; API chạy được với `JWT_SECRET` mặc định | `APP_ENV=production`: từ chối khởi động nếu `JWT_SECRET` yếu / thiếu `SEED_PASSWORD`; `deploy.yml` kiểm tra trước khi deploy (`config.spec.ts`) |
+| #9 Security — **V2 (cao)** | Đăng nhập không giới hạn số lần thử → dò mật khẩu | Sai 5 lần / tài khoản hoặc 20 lần / IP trong 15 phút → 429 + `Retry-After` (`login-limiter.spec.ts`, `security.e2e-spec.ts`, `e2e/tests/security.spec.ts`) |
+| #9 Security — V3 | Đăng xuất không thu hồi token (token lộ còn dùng 12 giờ); không đổi được mật khẩu | Cột `token_version` + claim `ver`; `PATCH /api/auth/password`; trang Tài khoản (`auth.e2e-spec.ts`, `account.test.tsx`) |
+| #9 Security — V4 | Thiếu header bảo mật (clickjacking, MIME sniffing, CSP) | helmet (API, CSP riêng cho Swagger) + `headers()` của Next (web); HSTS khi `COOKIE_SECURE=true` |
+| #9 Security — V5–V7 | Swagger công khai trên production; cờ Secure của cookie khó hiểu; 3 lỗ hổng moderate (`glob` qua `@nestjs/cli`) | Swagger mặc định tắt khi production; `COOKIE_SECURE`; `overrides` glob 14 → backend 0 lỗ hổng |
+| #3 Component (`account.test.tsx`) | Trang đổi mật khẩu: lỗi server `undefined` đè mất lỗi kiểm tra phía client → bấm "Đổi mật khẩu" mà không thấy báo gì | Chỉ trộn lỗi server có giá trị |
+| #11 Accessibility (axe) | Trang `/quality`: vùng cuộn không dùng được bằng bàn phím; màn 390px tràn ngang | `ScrollArea` có `tabIndex`; grid `minmax(0,1fr)` |
 
 Ba lỗi trong đề (L1 thiếu `authorize()`, L2 số lượng âm vẫn 201, L3 dùng giá trình duyệt gửi lên) có test tái hiện ở cả 3 tầng: unit (`pricing.spec.ts`, `validation.spec.ts`), API (`orders.e2e-spec.ts`, `auth.e2e-spec.ts`), component và E2E (`checkout.test.tsx`, `sales.spec.ts`).
 
@@ -121,11 +140,15 @@ Ba lỗi trong đề (L1 thiếu `authorize()`, L2 số lượng âm vẫn 201, 
 
 ## 6. Khuyến nghị / việc còn mở
 
-- [ ] **Rate limit đăng nhập** chống dò mật khẩu (`it.todo` trong `security.e2e-spec.ts`), ví dụ `@nestjs/throttler`.
-- [ ] **Header bảo mật** (helmet: CSP, X-Frame-Options; HSTS khi chạy HTTPS). Cần cấu hình riêng cho Swagger UI.
-- [ ] Backend còn 3 lỗ hổng mức **moderate** trong dev dependency (`glob` / `minimatch` qua `@nestjs/cli`), không có trong bản production; chờ bản vá upstream.
-- [ ] Làm CI/CD (#15) bằng GitHub Actions: chạy các lệnh kiểm thử ở mục 7 khi tạo PR / push `main`. Nên bật branch protection bắt buộc CI xanh mới được merge.
-- [ ] Quay video Playwright khi lỗi (máy local thiếu ffmpeg; chạy `npx playwright install ffmpeg` nếu muốn).
+- [x] ~~Rate limit đăng nhập~~ → V2 (đã làm)
+- [x] ~~Header bảo mật (helmet, HSTS khi HTTPS)~~ → V4 (đã làm)
+- [x] ~~3 lỗ hổng moderate trong dev dependency~~ → `overrides` glob 14 (đã làm)
+- [x] ~~Chạy CI thật trên GitHub~~ (job E2E đỏ do healthcheck dùng `localhost` → đã đổi `127.0.0.1`, CI đã xanh)
+- [ ] **Branch protection** trên GitHub: bắt buộc 4 job CI xanh mới được merge vào `main`. Cần chuyển sang quy trình Pull Request vì sẽ chặn push thẳng lên `main`.
+- [ ] Production chạy sau **reverse proxy HTTPS** (nginx / Caddy) ghi đè `X-Forwarded-For` → giới hạn theo IP không giả được; rồi đặt `COOKIE_SECURE=true`.
+- [ ] Chạy nhiều instance backend → chuyển bộ đếm đăng nhập sai sang Redis (hiện lưu trong bộ nhớ).
+- [x] ~~Production: đặt secret `SEED_PASSWORD`~~ (đã đặt; chỉ dùng khi DB trống). Nhân viên tự đổi mật khẩu ở trang **Tài khoản** sau lần đăng nhập đầu.
+- [ ] Quay video Playwright khi lỗi chỉ bật trên CI (máy local thiếu ffmpeg; chạy `npx playwright install ffmpeg` nếu muốn).
 
 ## 7. Cách chạy
 
@@ -148,3 +171,14 @@ npm run stack:e2e:down
 npm run coverage:summary
 npm run test:all        # chạy tất cả theo thứ tự trên
 ```
+
+**CI** (`.github/workflows/ci.yml`) chạy khi có Pull Request hoặc push lên `main`:
+
+| Job | Hạng mục |
+|---|---|
+| `static` | #1, #9 |
+| `backend` (service Postgres `coffeepos_test`) | #2, #5, #7, #8, #9, #14 |
+| `frontend` | #2, #3, #14 + build |
+| `e2e` (stack Docker) | #13, #6, #11; #10 chỉ khi bấm chạy tay |
+
+Mỗi job tải lên artifact coverage / JUnit / báo cáo HTML và ghi bảng coverage vào Summary của run. `ci.yml` không có bước deploy. **CD** (`.github/workflows/deploy.yml`) chạy thủ công, chặn commit chưa có CI xanh — xem `.claude/docs/architecture/overview.md` mục 7.

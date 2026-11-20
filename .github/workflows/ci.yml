@@ -1,0 +1,176 @@
+# CI CoffeePOS — chạy toàn bộ kiểm thử khi tạo / cập nhật Pull Request và khi push lên main.
+# KHÔNG deploy. Mọi test dùng DB tạm: service Postgres của job (coffeepos_test) hoặc stack docker-compose.e2e.yml (DB trên RAM).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      perf:
+        description: Chạy thêm load test (autocannon) trên stack E2E
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  static:
+    name: "#1 Static analysis + #9 dependency audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Cài dependencies
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
+      - name: Backend — ESLint
+        run: npm run lint --prefix backend
+      - name: Backend — TypeScript
+        run: npm run typecheck --prefix backend
+      - name: Frontend — ESLint
+        run: npm run lint --prefix frontend
+      - name: Frontend — TypeScript
+        run: npm run typecheck --prefix frontend
+      - name: npm audit (dependencies production, mức high trở lên)
+        run: |
+          npm audit --omit=dev --audit-level=high --prefix backend
+          npm audit --omit=dev --audit-level=high --prefix frontend
+
+  backend:
+    name: "#2 Unit · #5 API · #7 Auth · #8 DB · #9 Security · #14 Coverage (backend)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coffeepos_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coffeepos_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/coffeepos_test
+      JWT_SECRET: ci-only-secret-0123456789-abcdefghijklmnop
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Unit test + coverage
+        run: npm run test:cov -- --ci
+      - name: E2E API (supertest + PostgreSQL thật) + coverage
+        run: npm run test:e2e:cov -- --ci
+      - name: Tóm tắt coverage
+        if: always()
+        run: node ../scripts/coverage-summary.mjs "Backend unit=coverage/unit/coverage-summary.json" "Backend e2e=coverage/e2e/coverage-summary.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-reports
+          path: |
+            backend/coverage/
+            backend/reports/
+
+  frontend:
+    name: "#2 Unit · #3 Component · #14 Coverage (frontend)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Vitest + React Testing Library + coverage
+        run: npm run test:ci
+      - name: Build production (bắt lỗi chỉ lộ ra khi build)
+        run: npm run build
+      - name: Tóm tắt coverage
+        if: always()
+        run: node ../scripts/coverage-summary.mjs "Frontend=coverage/coverage-summary.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-reports
+          path: |
+            frontend/coverage/
+            frontend/reports/
+
+  e2e:
+    name: "#6 E2E · #11 Accessibility · #13 Smoke · #10 Load (Docker)"
+    needs: [static]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Build + chạy stack E2E (đồng thời kiểm tra Dockerfile)
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+      - name: "#13 Smoke test"
+        run: scripts/smoke.sh http://localhost:3200 http://localhost:4200
+      - name: Cài Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: "#6 E2E + #11 Accessibility (Playwright + axe-core)"
+        working-directory: e2e
+        run: npx playwright test
+      - name: "#10 Load test"
+        if: github.event_name == 'workflow_dispatch' && inputs.perf
+        working-directory: e2e
+        run: |
+          node perf/load-test.mjs
+          cat reports/perf.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Log container khi lỗi
+        if: failure()
+        run: |
+          mkdir -p e2e/reports
+          docker compose -f docker-compose.e2e.yml ps -a
+          docker compose -f docker-compose.e2e.yml logs --no-color --tail 200 | tee e2e/reports/docker.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-reports
+          path: |
+            e2e/reports/
+            e2e/test-results/
+      - name: Dọn stack
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml down
