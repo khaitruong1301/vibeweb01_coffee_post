@@ -31,6 +31,7 @@
     "!src/generated/**",
     "!src/main.ts",
     "!src/seed/run.ts",
+    "!src/config.ts",
     "!src/**/*.spec.ts"
   ],
   "coverageDirectory": "coverage/e2e",

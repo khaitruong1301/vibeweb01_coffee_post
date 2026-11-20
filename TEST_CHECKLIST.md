@@ -70,7 +70,7 @@ Nguồn: `npm run test:report` (cũng hiển thị trên trang `/quality`).
 | Bộ | Lines | Statements | Branches | Functions | Ngưỡng (L/B/F/S) |
 |---|---|---|---|---|---|
 | Backend unit (luật tính tiền, mã đơn, trạng thái, filter, validation, giới hạn đăng nhập) | 100% | 99.2% | 87.5% | 100% | 95 / 85 / 95 / 95 |
-| Backend e2e (toàn bộ `src/`) | 96.37% | 94.36% | 75.26% | 97.08% | 90 / 75 / 85 / 90 |
+| Backend e2e (`src/`, trừ `config.ts`) | 97.56% | 95.74% | 80.62% | 97.02% | 90 / 75 / 85 / 90 |
 | Frontend (lib, components, checkout, quality, account) | 93.48% | 90.4% | 83.72% | 86.36% | 85 / 80 / 75 / 85 |
 
 Báo cáo: `backend/coverage/{unit,e2e}/lcov-report/index.html`, `frontend/coverage/index.html`, `e2e/reports/html/index.html`, JUnit / Jest JSON: `backend/reports/`, `frontend/reports/junit.xml`, `e2e/reports/junit-e2e.xml`, load: `e2e/reports/perf.md`, tổng hợp: `reports/test-report.json`.

@@ -21,3 +21,4 @@ Theo dõi tổng thể: `TEST_CHECKLIST.md` (gốc repo). CI: `.github/workflows
 - Lỗi phát hiện được thì viết test tái hiện trước rồi mới sửa; tính năng chưa có thì dùng `it.todo`, không viết test "pass giả".
 - Frontend: tìm phần tử theo vai trò / nhãn (`getByRole`, `getByLabelText`), không theo class CSS.
 - Ngưỡng coverage (CI đỏ nếu tụt): backend unit 95/85/95/95, backend e2e 90/75/85/90, frontend 85/80/75/85 (lines/branches/functions/statements).
+- Coverage e2e bỏ `src/config.ts`: các nhánh `process.env.X ?? mặc định` phụ thuộc biến môi trường của máy chạy (CI có `JWT_SECRET`, máy dev thì không) nên số liệu lệch giữa local và CI. Logic kiểm tra cấu hình production đã có unit test `config.spec.ts`.
