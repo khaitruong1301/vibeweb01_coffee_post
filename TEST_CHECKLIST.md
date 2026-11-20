@@ -3,7 +3,7 @@
 Theo dõi 15 hạng mục kiểm thử tự động. Cập nhật cột **Kết quả** mỗi khi thêm/sửa test.
 Lần chạy gần nhất: **19/11/2026** (máy local, Node 22.17, Docker Desktop, Chrome) — **tất cả ĐẠT**.
 
-> **Nguyên tắc an toàn:** không test nào chạm DB production; workflow kiểm thử (`ci.yml`) không deploy — deploy nằm ở `deploy.yml` và chỉ chạy sau khi CI trên `main` xanh.
+> **Nguyên tắc an toàn:** không test nào chạm DB production; workflow kiểm thử (`ci.yml`) không deploy — deploy nằm ở `deploy.yml`, chỉ chạy thủ công và chỉ cho commit đã có CI xanh.
 > - e2e backend ép `DATABASE_URL = DATABASE_URL_TEST` (bắt buộc hậu tố `_test`, mặc định `coffeepos_test`).
 > - E2E trình duyệt, smoke, load chạy trên `docker-compose.e2e.yml`: DB trên RAM, cổng 3200/4200/5436, tắt là mất.
 > - Load test từ chối chạy nếu không phải cổng 4200 (trừ khi đặt `PERF_TARGET_CONFIRMED=yes`).
@@ -158,4 +158,4 @@ npm run test:all        # chạy tất cả theo thứ tự trên
 | `frontend` | #2, #3, #14 + build |
 | `e2e` (stack Docker) | #13, #6, #11; #10 chỉ khi bấm chạy tay |
 
-Mỗi job tải lên artifact coverage / JUnit / báo cáo HTML và ghi bảng coverage vào Summary của run. `ci.yml` không có bước deploy. **CD** (`.github/workflows/deploy.yml`) chạy sau khi CI trên `main` thành công — xem `.claude/docs/architecture/overview.md` mục 7.
+Mỗi job tải lên artifact coverage / JUnit / báo cáo HTML và ghi bảng coverage vào Summary của run. `ci.yml` không có bước deploy. **CD** (`.github/workflows/deploy.yml`) chạy thủ công, chặn commit chưa có CI xanh — xem `.claude/docs/architecture/overview.md` mục 7.

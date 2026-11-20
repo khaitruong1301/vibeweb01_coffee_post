@@ -1,4 +1,5 @@
-# CD CoffeePOS — deploy lên server sau khi CI trên main xanh (hoặc chạy tay).
+# CD CoffeePOS — deploy THỦ CÔNG: Actions → Deploy → Run workflow (hoặc `gh workflow run deploy.yml -f ref=main`).
+# Push lên main chỉ chạy CI, không tự deploy. Mặc định chỉ cho deploy commit đã có CI xanh.
 # Server tự build image và chạy docker-compose.yml với .env production (xem scripts/deploy.sh):
 # DB và API chỉ nghe trên 127.0.0.1, chỉ web (FRONTEND_PORT) mở ra Internet.
 #
@@ -10,14 +11,20 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag hoặc commit SHA cần deploy (rollback = nhập commit cũ)
+        default: main
+        required: true
+      skip_ci_check:
+        description: Bỏ qua kiểm tra CI xanh (chỉ dùng khi khẩn cấp)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  actions: read   # đọc kết quả CI của commit
 
 concurrency:
   group: deploy-production
@@ -26,20 +33,32 @@ concurrency:
 jobs:
   deploy:
     name: Deploy lên server
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
       name: production
       url: ${{ vars.DEPLOY_URL }}
-    env:
-      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.SHA }}
+          ref: ${{ inputs.ref }}
+
+      - name: Xác định commit + kiểm tra CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP: ${{ inputs.skip_ci_check }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "SHA=$SHA" >> "$GITHUB_ENV"
+          echo "Deploy ${{ inputs.ref }} → $(git log -1 --format='%h %s')"
+          if [ "$SKIP" = "true" ]; then
+            echo "::warning::Bỏ qua kiểm tra CI theo yêu cầu"; exit 0
+          fi
+          OK=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --status success --json databaseId --jq length)
+          if [ "$OK" -eq 0 ]; then
+            echo "::error::Commit ${SHA::7} chưa có lần chạy CI thành công — chờ CI xanh hoặc chọn skip_ci_check"; exit 1
+          fi
+          echo "CI đã xanh cho ${SHA::7}"
 
       - name: Cấu hình SSH
         env:

@@ -9,7 +9,7 @@
 | ORM / DB | Prisma 7.10 (`prisma-client` generator, `@prisma/adapter-pg`) → PostgreSQL 17 |
 | Test | Jest + ts-jest (unit), Jest + supertest (e2e trên `coffeepos_test`) |
 | Đóng gói | Docker (multi-stage, `node:22-alpine`), Docker Compose |
-| CI/CD | GitHub Actions: `ci.yml` (kiểm thử), `deploy.yml` (SSH lên server, build bằng Docker Compose) |
+| CI/CD | GitHub Actions: `ci.yml` (kiểm thử, tự chạy), `deploy.yml` (deploy thủ công: SSH lên server, build bằng Docker Compose) |
 
 > Dùng NestJS 11 thay vì 12: bản 12 chuyển sang ESM thuần, chưa phù hợp với Prisma client CommonJS của dự án.
 
@@ -31,7 +31,7 @@ Trình duyệt ──/api/*──► Next.js (rewrites) ──► NestJS /api �
 ```
 docker-compose.yml          db + backend + frontend (dev và production dùng chung, khác nhau ở .env)
 .env.example                biến cho compose (JWT_SECRET, cổng, SEED, địa chỉ bind)
-.github/workflows/          ci.yml (kiểm thử) · deploy.yml (CD lên server)
+.github/workflows/          ci.yml (kiểm thử) · deploy.yml (deploy thủ công lên server)
 scripts/deploy.sh           chạy trên server: cài Docker, lấy code theo commit, compose up --build, health check
 database/init/              SQL chạy khi volume DB trống (tạo coffeepos_test)
 backend/
@@ -113,11 +113,19 @@ frontend/
 
 ## 7. Triển khai (CD)
 
-`.github/workflows/deploy.yml` chạy khi workflow **CI** trên `main` (do push) kết thúc **thành công**, hoặc chạy tay (Actions → Deploy → Run workflow). Các bước:
+`.github/workflows/deploy.yml` **chỉ chạy thủ công**: push lên `main` chỉ chạy CI, không tự deploy. Khi muốn đưa bản mới lên server: GitHub → **Actions → Deploy → Run workflow**, hoặc `gh workflow run deploy.yml -f ref=main`.
 
-1. SSH vào server bằng deploy key (kiểm tra host key qua `SSH_KNOWN_HOSTS`).
-2. Ghi `/opt/coffeepos/.env` từ GitHub Secrets/Variables (quyền 600).
-3. Gửi `scripts/deploy.sh` chạy trên server: lần đầu cài git + Docker, tạo swap 2GB nếu RAM < 2GB; lấy đúng commit đã qua CI (`git fetch --depth 1` + checkout); `docker compose up -d --build --wait`; gọi `/api/health` qua cổng web; dọn image cũ.
+| Input | Mặc định | Ý nghĩa |
+|---|---|---|
+| `ref` | `main` | branch, tag hoặc commit SHA cần deploy — rollback = nhập commit cũ |
+| `skip_ci_check` | `false` | mặc định workflow dừng nếu commit chưa có lần chạy CI thành công; chỉ bật khi khẩn cấp |
+
+Các bước:
+
+1. Checkout `ref`, kiểm tra commit đã có CI xanh.
+2. SSH vào server bằng deploy key (kiểm tra host key qua `SSH_KNOWN_HOSTS`).
+3. Ghi `/opt/coffeepos/.env` từ GitHub Secrets/Variables (quyền 600).
+4. Gửi `scripts/deploy.sh` chạy trên server: lần đầu cài git + Docker, tạo swap 2GB nếu RAM < 2GB; lấy đúng commit đã qua CI (`git fetch --depth 1` + checkout); `docker compose up -d --build --wait`; gọi `/api/health` qua cổng web; dọn image cũ.
 
 | Server | Giá trị |
 |---|---|
@@ -138,4 +146,4 @@ frontend/
 | `SEED` | `true` (nạp dữ liệu mẫu khi DB trống) |
 | `DEPLOY_URL` | link hiển thị trên run + `CORS_ORIGIN` |
 
-Kiểm tra trên server: `cd /opt/coffeepos && docker compose ps` · `docker compose logs -f backend`. Rollback: chạy tay workflow Deploy trên commit cũ, hoặc trên server `git fetch --depth 1 origin <sha> && git checkout -f FETCH_HEAD && docker compose up -d --build`.
+Kiểm tra trên server: `cd /opt/coffeepos && docker compose ps` · `docker compose logs -f backend`. Rollback: chạy workflow Deploy với `ref` = commit cũ, hoặc trên server `git fetch --depth 1 origin <sha> && git checkout -f FETCH_HEAD && docker compose up -d --build`.

@@ -25,7 +25,7 @@ cd frontend && npm install && npm run dev                                       
 
 ## Deploy (CI/CD)
 
-Push lên `main` → CI (`ci.yml`) chạy toàn bộ kiểm thử → nếu xanh, `deploy.yml` SSH vào server, lấy đúng commit đó và chạy `docker compose up -d --build`.
+Push lên `main` → CI (`ci.yml`) tự chạy toàn bộ kiểm thử. Deploy **thủ công**: Actions → Deploy → Run workflow (chọn `ref`, mặc định `main`) — workflow kiểm tra commit đã có CI xanh rồi SSH vào server, chạy `docker compose up -d --build`.
 Cấu hình secrets và cách vận hành: `.claude/docs/architecture/overview.md` mục 7.
 
 ## Kiểm thử
