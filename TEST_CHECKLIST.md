@@ -3,7 +3,7 @@
 Theo dõi 15 hạng mục kiểm thử tự động. Cập nhật cột **Kết quả** mỗi khi thêm/sửa test.
 Lần chạy gần nhất: **19/11/2026** (máy local, Node 22.17, Docker Desktop, Chrome) — **tất cả ĐẠT**.
 
-> **Nguyên tắc an toàn:** không test nào chạm DB production; workflow kiểm thử (`ci.yml`) không deploy — deploy nằm ở `deploy.yml`, chỉ chạy thủ công và chỉ cho commit đã có CI xanh.
+> **Nguyên tắc an toàn:** không test nào chạm DB production và không có bước deploy.
 > - e2e backend ép `DATABASE_URL = DATABASE_URL_TEST` (bắt buộc hậu tố `_test`, mặc định `coffeepos_test`).
 > - E2E trình duyệt, smoke, load chạy trên `docker-compose.e2e.yml`: DB trên RAM, cổng 3200/4200/5436, tắt là mất.
 > - Load test từ chối chạy nếu không phải cổng 4200 (trừ khi đặt `PERF_TARGET_CONFIRMED=yes`).
@@ -15,7 +15,7 @@ Lần chạy gần nhất: **19/11/2026** (máy local, Node 22.17, Docker Deskto
 | Frontend | Next.js 16 (App Router), React 19, Tailwind 4 | ESLint (core-web-vitals), Vitest 5 + React Testing Library + jsdom, Playwright + axe-core |
 | Backend | NestJS 11, class-validator, JWT cookie, Swagger | ESLint (typescript-eslint type-checked), Jest + ts-jest, supertest |
 | Database | PostgreSQL 17, Prisma 7, CHECK constraint | Jest + Prisma trên `coffeepos_test`, `prisma migrate diff` |
-| Hạ tầng | Docker Compose | stack E2E riêng, smoke script, autocannon, GitHub Actions |
+| Hạ tầng | Docker Compose | stack E2E riêng, smoke script, autocannon |
 
 ## 2. Tổng hợp 15 hạng mục
 
@@ -35,7 +35,7 @@ Lần chạy gần nhất: **19/11/2026** (máy local, Node 22.17, Docker Deskto
 | 12 | Regression | ✅ (không viết lại) | các test gắn mã `BR0x` / `L1–L3` | `npm run test:regression` | ✅ 39 test |
 | 13 | Smoke Testing | ✅ | `scripts/smoke.sh`, `e2e/tests/smoke.spec.ts` (`@smoke`) | `npm run test:smoke` | ✅ 11/11 + 6 |
 | 14 | Coverage Reporting | ✅ | Jest (lcov/html/json-summary), Vitest v8, JUnit XML | `npm run coverage:summary` | ✅ vượt ngưỡng |
-| 15 | CI/CD Automated Testing | ✅ | `.github/workflows/ci.yml` | tự chạy khi tạo PR | ⏳ chưa chạy trên GitHub (repo chưa có git) |
+| 15 | CI/CD Automated Testing | _(dự kiến)_ | — | — | Chưa có workflow |
 
 **Vì sao #4 không có bộ riêng:** API test (#5) dựng ứng dụng Nest thật, gồm guard, pipe, filter, Prisma và PostgreSQL thật, nên đó đã là integration test giữa các tầng. Test database (#8) kiểm phần tích hợp với DB. Thêm một bộ "service + DB" riêng sẽ trùng lặp. Tích hợp frontend ↔ backend qua proxy Next được E2E (#6) và smoke (#13) bao phủ.
 
@@ -124,8 +124,8 @@ Ba lỗi trong đề (L1 thiếu `authorize()`, L2 số lượng âm vẫn 201, 
 - [ ] **Rate limit đăng nhập** chống dò mật khẩu (`it.todo` trong `security.e2e-spec.ts`), ví dụ `@nestjs/throttler`.
 - [ ] **Header bảo mật** (helmet: CSP, X-Frame-Options; HSTS khi chạy HTTPS). Cần cấu hình riêng cho Swagger UI.
 - [ ] Backend còn 3 lỗ hổng mức **moderate** trong dev dependency (`glob` / `minimatch` qua `@nestjs/cli`), không có trong bản production; chờ bản vá upstream.
-- [ ] Chạy CI thật: `git init`, đẩy lên GitHub, tạo PR đầu tiên. Nên bật branch protection bắt buộc 4 job CI xanh mới được merge.
-- [ ] Quay video Playwright khi lỗi chỉ bật trên CI (máy local thiếu ffmpeg; chạy `npx playwright install ffmpeg` nếu muốn).
+- [ ] Làm CI/CD (#15) bằng GitHub Actions: chạy các lệnh kiểm thử ở mục 7 khi tạo PR / push `main`. Nên bật branch protection bắt buộc CI xanh mới được merge.
+- [ ] Quay video Playwright khi lỗi (máy local thiếu ffmpeg; chạy `npx playwright install ffmpeg` nếu muốn).
 
 ## 7. Cách chạy
 
@@ -148,14 +148,3 @@ npm run stack:e2e:down
 npm run coverage:summary
 npm run test:all        # chạy tất cả theo thứ tự trên
 ```
-
-**CI** (`.github/workflows/ci.yml`) chạy khi có Pull Request hoặc push lên `main`:
-
-| Job | Hạng mục |
-|---|---|
-| `static` | #1, #9 |
-| `backend` (service Postgres `coffeepos_test`) | #2, #5, #7, #8, #9, #14 |
-| `frontend` | #2, #3, #14 + build |
-| `e2e` (stack Docker) | #13, #6, #11; #10 chỉ khi bấm chạy tay |
-
-Mỗi job tải lên artifact coverage / JUnit / báo cáo HTML và ghi bảng coverage vào Summary của run. `ci.yml` không có bước deploy. **CD** (`.github/workflows/deploy.yml`) chạy thủ công, chặn commit chưa có CI xanh — xem `.claude/docs/architecture/overview.md` mục 7.

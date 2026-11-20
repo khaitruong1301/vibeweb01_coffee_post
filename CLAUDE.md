@@ -27,7 +27,7 @@ Quy tắc chính (chi tiết trong `.claude/rules/`):
 Chạy (Node 22: `export PATH=$HOME/.nvm/versions/node/v22.17.0/bin:$PATH`):
 - Toàn bộ bằng Docker: `docker compose up -d --build` → web http://localhost:3100 · API http://localhost:4100/api · Swagger http://localhost:4100/api/docs · DB localhost:5435.
 - Dev local: `docker compose up -d db` · `cd backend && npm run dev` · `cd frontend && npm run dev`.
-- Kiểm tra (chi tiết `TEST_CHECKLIST.md`, quy ước `.claude/docs/conventions/testing.md`): `npm run static` · `npm run test:unit` · `npm run test:api` · E2E: `npm run stack:e2e:up && npm run test:smoke && PW_CHANNEL=chrome npm run test:e2e` · tất cả: `npm run test:all`. CI: `.github/workflows/ci.yml` chạy khi tạo PR / push `main`; CD: `.github/workflows/deploy.yml` deploy **thủ công** (Actions → Deploy → Run workflow, chỉ cho commit đã có CI xanh — overview mục 7).
+- Kiểm tra (chi tiết `TEST_CHECKLIST.md`, quy ước `.claude/docs/conventions/testing.md`): `npm run static` · `npm run test:unit` · `npm run test:api` · E2E: `npm run stack:e2e:up && npm run test:smoke && PW_CHANNEL=chrome npm run test:e2e` · tất cả: `npm run test:all`.
 - Đổi schema: `cd backend && npm run db:migrate -- --name <ten>`.
 - Tài khoản demo (mật khẩu `Coffee@123`): `chuquan` (admin), `thungan1..3`, `phache1..3`.
 

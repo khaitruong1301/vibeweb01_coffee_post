@@ -9,7 +9,6 @@
 | ORM / DB | Prisma 7.10 (`prisma-client` generator, `@prisma/adapter-pg`) → PostgreSQL 17 |
 | Test | Jest + ts-jest (unit), Jest + supertest (e2e trên `coffeepos_test`) |
 | Đóng gói | Docker (multi-stage, `node:22-alpine`), Docker Compose |
-| CI/CD | GitHub Actions: `ci.yml` (kiểm thử, tự chạy), `deploy.yml` (deploy thủ công: SSH lên server, build bằng Docker Compose) |
 
 > Dùng NestJS 11 thay vì 12: bản 12 chuyển sang ESM thuần, chưa phù hợp với Prisma client CommonJS của dự án.
 
@@ -31,8 +30,6 @@ Trình duyệt ──/api/*──► Next.js (rewrites) ──► NestJS /api �
 ```
 docker-compose.yml          db + backend + frontend (dev và production dùng chung, khác nhau ở .env)
 .env.example                biến cho compose (JWT_SECRET, cổng, SEED, địa chỉ bind)
-.github/workflows/          ci.yml (kiểm thử) · deploy.yml (deploy thủ công lên server)
-scripts/deploy.sh           chạy trên server: cài Docker, lấy code theo commit, compose up --build, health check
 database/init/              SQL chạy khi volume DB trống (tạo coffeepos_test)
 backend/
   prisma/schema.prisma      schema · migrations/ (kèm CHECK constraint)
@@ -90,7 +87,7 @@ frontend/
 | `DATABASE_URL_TEST` | backend e2e | phải có hậu tố `_test`; mặc định `coffeepos_test` |
 | `JWT_SECRET` | backend | khóa ký phiên; có giá trị mặc định cho dev (in cảnh báo) — **đổi trước khi deploy** |
 | `PORT` | backend | mặc định 4100 |
-| `CORS_ORIGIN` | backend, compose | mặc định `http://localhost:3100`; production = `DEPLOY_URL` |
+| `CORS_ORIGIN` | backend, compose | mặc định `http://localhost:3100` |
 | `SEED` | backend (Docker) | `true` → nạp dữ liệu mẫu khi DB trống |
 | `SWAGGER_ENABLED` | backend | mặc định bật; `false` → tắt `/api/docs` |
 | `BACKEND_URL` | frontend (build) | mặc định `http://localhost:4100`; Docker: `http://backend:4100` |
@@ -110,40 +107,3 @@ frontend/
 | frontend | `npm run dev` / `build` / `start` | Next cổng 3100 |
 | frontend | `npm run typecheck` / `lint` | tsc / ESLint (core-web-vitals) |
 | gốc | `docker compose up -d --build` | build + chạy cả 3 dịch vụ |
-
-## 7. Triển khai (CD)
-
-`.github/workflows/deploy.yml` **chỉ chạy thủ công**: push lên `main` chỉ chạy CI, không tự deploy. Khi muốn đưa bản mới lên server: GitHub → **Actions → Deploy → Run workflow**, hoặc `gh workflow run deploy.yml -f ref=main`.
-
-| Input | Mặc định | Ý nghĩa |
-|---|---|---|
-| `ref` | `main` | branch, tag hoặc commit SHA cần deploy — rollback = nhập commit cũ |
-| `skip_ci_check` | `false` | mặc định workflow dừng nếu commit chưa có lần chạy CI thành công; chỉ bật khi khẩn cấp |
-
-Các bước:
-
-1. Checkout `ref`, kiểm tra commit đã có CI xanh.
-2. SSH vào server bằng deploy key (kiểm tra host key qua `SSH_KNOWN_HOSTS`).
-3. Ghi `/opt/coffeepos/.env` từ GitHub Secrets/Variables (quyền 600).
-4. Gửi `scripts/deploy.sh` chạy trên server: lần đầu cài git + Docker, tạo swap 2GB nếu RAM < 2GB; lấy đúng commit đã qua CI (`git fetch --depth 1` + checkout); `docker compose up -d --build --wait`; gọi `/api/health` qua cổng web; dọn image cũ.
-
-| Server | Giá trị |
-|---|---|
-| Thư mục | `/opt/coffeepos` (code + `.env`), dữ liệu DB ở volume `coffeepos_db-data` |
-| Cổng mở ra Internet | chỉ web `FRONTEND_PORT` (mặc định 3100); DB và API nghe trên `127.0.0.1` |
-| Swagger | `<DEPLOY_URL>/api/docs` (đi qua Next rewrites) |
-
-| GitHub Secrets | Ý nghĩa |
-|---|---|
-| `SSH_HOST`, `SSH_USER` | địa chỉ server, user SSH |
-| `SSH_PRIVATE_KEY` | private key của deploy key (public key nằm trong `~/.ssh/authorized_keys` trên server) |
-| `SSH_KNOWN_HOSTS` | kết quả `ssh-keyscan <host>` |
-| `JWT_SECRET`, `DB_PASSWORD` | ghi vào `.env` server; `DB_PASSWORD` chỉ áp dụng khi volume DB tạo lần đầu |
-
-| GitHub Variables (tuỳ chọn) | Mặc định |
-|---|---|
-| `FRONTEND_PORT` | `3100` |
-| `SEED` | `true` (nạp dữ liệu mẫu khi DB trống) |
-| `DEPLOY_URL` | link hiển thị trên run + `CORS_ORIGIN` |
-
-Kiểm tra trên server: `cd /opt/coffeepos && docker compose ps` · `docker compose logs -f backend`. Rollback: chạy workflow Deploy với `ref` = commit cũ, hoặc trên server `git fetch --depth 1 origin <sha> && git checkout -f FETCH_HEAD && docker compose up -d --build`.
